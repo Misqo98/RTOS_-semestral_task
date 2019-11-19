@@ -14,6 +14,7 @@ int main ()
 	int clientSocket, ret;
 	struct sockaddr_in serverAddr;
 	char buffer[1024];
+    char txtname[200];
 
 	clientSocket = socket(AF_INET, SOCK_STREAM, 0);// vytvorenie socketu
 	if(clientSocket < 0)
@@ -36,12 +37,13 @@ int main ()
     }
     printf("[+]Connected to Server\n");
 
-    while(1)
-    {
+    
 
-    	printf("Client: \t");
-    	scanf("%s", &buffer[0]);
-    	send(clientSocket, buffer, strlen(buffer), 0);
+    	printf("Zadajte nazov suboru pre nacitanie matice: \t");
+    	scanf("%s", txtname);
+        strcpy(buffer, txtname);////////
+        buffer[sizeof(buffer)] = '\n';////////
+    	send(clientSocket, buffer, sizeof(buffer), 0);
 
     	if(strcmp(buffer, "exit") == 0)
     	{
@@ -49,7 +51,7 @@ int main ()
     		printf("[-]Disconnected from server\n");
     		exit(1);
     	}
-
+        /*
     	if(recv(clientSocket, buffer, 1024, 0) < 0)
     	{
     	printf("[-]Error in recieving data\n");
@@ -57,10 +59,10 @@ int main ()
     	{
     		printf("Server: \t%s\n", buffer);
     	}
+    */
 
 
-
-   }
+   
 
 	return 0;
 }
