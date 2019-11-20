@@ -81,5 +81,6 @@ int main ()
     }
 
     close(newSocket);
+	exit(0);
 	return 0;
 }

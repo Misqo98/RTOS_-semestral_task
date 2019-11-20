@@ -32,7 +32,7 @@ int read1(int matout[MATMAX][MATMAX], char subor[50],int *num ) // funkcia pre n
 	//char subor[] = {"Vstup.txt"};
 	if ((fr = fopen(subor, "r")) == NULL) {
 		printf("Subor sa nepodarilo otvorit.\n");
-		return 0;
+		return -1;
 	}
 
 	fscanf(fr, "%d\n", &*(num));
@@ -97,6 +97,7 @@ int main ()
 	pid_t childPID;
 	char buffer[1024];
 ///////////////////////////////////////////////
+	//////// SHM ////////
 	char txtname[200];
 	matrix *ptrmatrix;
 	matrix *pommatrix;
@@ -105,6 +106,8 @@ int main ()
     int matica[MATMAX][MATMAX]; 
     int shmid;
 	key_t key;
+	int readerr;
+	int polek[1];
 ///////////////////////////////////////////////
 
 
@@ -144,7 +147,7 @@ int main ()
 		{
 			exit(1);
 		}
-		printf("Connection accepted from %s:%d\n", inet_ntoa(newAddr.sin_addr), ntohs(newAddr.sin_port));
+		printf("[+]Connection accepted from %s:%d\n", inet_ntoa(newAddr.sin_addr), ntohs(newAddr.sin_port));
 	
 
 		if (childPID = fork() == 0)
@@ -155,7 +158,7 @@ int main ()
 				recv(newSocket, buffer, 1024, 0);
 				if(strcmp(buffer, "exit") == 0)
 				{
-					printf("Disconnected from %s:%d\n", inet_ntoa(newAddr.sin_addr), ntohs(newAddr.sin_port));
+					printf("[-]Disconnected from %s:%d\n", inet_ntoa(newAddr.sin_addr), ntohs(newAddr.sin_port));
 					break;
 				}else
 				{
@@ -167,11 +170,18 @@ int main ()
 						txtname[i] = buffer[i];
 
 					}
-					txtname[i] = '\0';/////////////////
-					printf("Nazov matice: %s\n", txtname);
-					/*send(newSocket, buffer, strlen(buffer), 0);
-					bzero(buffer, sizeof(buffer));*/
-					key = 9804;// fumguje iba pre jeden klient*****
+					txtname[i] = '\0';// bez pridania nuli to vypisovalo hovadiny
+					printf("[DEBUG]Nazov matice: %s\n", txtname);
+
+					
+					
+					if((key = ftok(txtname, 'R')) < 0)//Vytvorenie unikatneho kluca pre kazdy subor
+					{
+						polek[0] = key;// musi byt
+						send(newSocket, polek, sizeof(polek), 0);// posle -1 ako kluc
+						printf("[-]Subor sa nenasiel\n");// osetrenie ak sa nenajde subor
+  						exit(1);
+					}
 					if ((shmid = shmget(key, sizeof(matrix), IPC_CREAT | 0666)) < 0) {
         				perror("shmget");
         				exit(1);
@@ -180,15 +190,24 @@ int main ()
     				/*
      				*Now we attach the segment to our data space.
      				*/
-    			if ((ptrmatrix = (matrix*)shmat(shmid, (void*)0, 0)) == (matrix *) -1) {
-        		perror("shmat");
-        		exit(1);
-    			}
-  
-    			read1(matica, txtname, &(ptrmatrix->rozmer));
-    			matfill(matica, ptrmatrix->mat, ptrmatrix->rozmer);
-				printf("[+]Do pamate sa zapisalo :\n");
-				Vypis(ptrmatrix->mat, ptrmatrix->rozmer); 
+    				if ((ptrmatrix = (matrix*)shmat(shmid, (void*)0, 0)) == (matrix *) -1) {
+        				perror("shmat");
+        				exit(1);
+    				}
+  					if (read1(matica, txtname, &(ptrmatrix->rozmer)) < 0)//***************************************************************
+  					{
+  					
+  						printf("[-]Subor sa nenasiel\n");
+  						exit(1);
+  					}
+    			
+    				matfill(matica, ptrmatrix->mat, ptrmatrix->rozmer);
+    			
+    				polek[0] = key;
+    				printf("[DEBUG]Toto je kluc: %d\n", key);//*************************DEBUG*************************//
+    				send(newSocket, polek, sizeof(polek), 0);
+					printf("[DEBUG]Do pamate sa zapisalo :\n");
+					Vypis(ptrmatrix->mat, ptrmatrix->rozmer); 
 
 				}
 			
