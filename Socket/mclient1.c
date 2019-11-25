@@ -66,7 +66,10 @@ int main ()
     int matica[MATMAX][MATMAX]; 
     int shmid;
     key_t key;
+    double roots[MATMAX];
+    char alf[30];
     ///////////////////////////////////////////////
+    
 
 	clientSocket = socket(AF_INET, SOCK_STREAM, 0);// vytvorenie socketu
 	if(clientSocket < 0)
@@ -130,20 +133,45 @@ int main ()
             if ((ptrmatrix = (matrix*)shmat(shmid, (void*)0, 0)) == (matrix *) -1) {
                 perror("[-]shmat");
                 exit(1);
-            }
-            pommatrix = ptrmatrix;
+            }else{
+            
             
            //////////////////////// zapisanie do SHM //////////////////////
-            {
+                pommatrix = ptrmatrix;
 
-
-                int n = ptrmatrix->rozmer;
-      
+                int n = ptrmatrix->rozmer;///// toto je zbitocne ak tak upravit
+                int mat_koef[MATMAX];
+                
                 printf("[+] Nacitala sa matica %dx%d\n", pommatrix->rozmer, pommatrix->rozmer);
                 //printf("[DEBUG]V zdielanej pamati je toto:%d(romer matice)\n", ptrmatrix->rozmer);
                 Vypis(pommatrix->mat, ptrmatrix->rozmer); 
-            }
+
+                ////// nacitanie rozsirenej matice ///////
+                printf("Zadajte koeficienty rozsirenej matice:\n");
+                for(int i = 0; i < pommatrix->rozmer; i++)
+                {
+                    printf("\t Zadajte %d. koeficient rozsirenej matice:", i+1);
+                    scanf("%d", &mat_koef[i]);
+
+                }
+                send(clientSocket, mat_koef, sizeof(mat_koef), 0);
+               // printf("\n toto su koeficienty %d %d %d", mat_koef[0], mat_koef[1], mat_koef[2]);
+                if(recv(clientSocket, roots, sizeof(roots), 0) < 0)
+                {
+                    printf("[-]Error in recieving data(key)\n");
+
+                }else
+                {
+                    printf("Riesenia rovnic:\n");
+                    for(int i = 0; i < pommatrix->rozmer; i++)
+                    {
+                        printf("\tRiesenie %d. rovnice = %f\n", i+1, roots[i]);// pride iba prvy x v poli
+                    }
+
+                }
+
             //
+            }
     	}
     
 
