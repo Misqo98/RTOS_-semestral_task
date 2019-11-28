@@ -18,6 +18,7 @@
 #define PORT 9834
 #define MATMAX 200 // velkost najvacsiej matice
 int connFlag = 0;
+pid_t childPID;
 timer_t vytvorCasovac(int);
 void spustiCasovac(timer_t, int);
 
@@ -33,7 +34,7 @@ typedef struct matrix
 void sigFlag(int signum)// ak skonci proces potomka odpocota sa premena podla ktorej rozhodujeme vypnutie servera
 {
 	wait(NULL);
-	printf("Child kill\n");
+	printf("[+]Client disconnected\n");
 	connFlag --;
 
 }
@@ -138,8 +139,7 @@ int determinantOfMatrix(int **mat, int n)
 
 int *Eq_solver(int **table1, int n, int ext[MATMAX])
 {
-//////////// nechce ist pre 5 x 5 /////////////////// idk preco 
-	/////////////////////
+
 	int **temp1 = create(n);
 	//int ext[] = { 1 , 2, 3, 4, 5, };
 	int *det = (int*)malloc(n * sizeof(int));
@@ -151,14 +151,12 @@ int *Eq_solver(int **table1, int n, int ext[MATMAX])
 		exit(1);
 	}
 	// determinant hlavnej matice pripoji na posledne misto pola
-	//printf("Eq_solver %f\n", det[n]);
-
 	
 
 	for (int m = 0; m < n; m++)
 	{
 
-////////////////////////////////////////////////////////max velkost 5
+
 		for (int x = 0; x < n; x++)
 
 		{
@@ -186,8 +184,8 @@ int *Eq_solver(int **table1, int n, int ext[MATMAX])
 
 		}
 		det[m] = determinantOfMatrix(temp1, n);
-		printf("\n Determinant cislo %d: %d\n", m, det[m]);//[DEBUG]
-		VypisDym(temp1, n);//[DEBUG]
+		//printf("\n Determinant cislo %d: %d\n", m, det[m]);//[DEBUG]
+		//VypisDym(temp1, n);//[DEBUG]
 		
 /////////////////////////////////////////////////////
 	}
@@ -206,7 +204,7 @@ int read1(int matout[MATMAX][MATMAX], char subor[50],int *num ) // funkcia pre n
 	int sx = 0, sy = 0, min;
 	//char subor[] = {"Vstup.txt"};
 	if ((fr = fopen(subor, "r")) == NULL) {
-		printf("Subor sa nepodarilo otvorit.\n");
+		printf("[-]Subor sa nepodarilo otvorit.\n");
 		return -1;
 	}
 
@@ -225,7 +223,7 @@ int read1(int matout[MATMAX][MATMAX], char subor[50],int *num ) // funkcia pre n
 		}
 
 	}
-
+	fclose(fr);
 	return 0;
 
 }
@@ -263,29 +261,21 @@ void Vypis(int pole[MATMAX][MATMAX], int n) { // Funkcia pre vypis matice
 
 double *roots_of_eq(int *determinants, int n)
 {
-	//double pole[MATMAX];
-	/*
-	if(determinants[n] == 0)
-	{
-		printf("Delenie nulou2");/// sem by sa to uz nemalo dostat//// chujovina 
-		exit(1);
-	}
-	*/
+	
 	double *pole = (double*)malloc(n * sizeof(double));
-	printf("\n\t roots_of_determinant %d\n", determinants[n]);
+	//printf("\n\t roots_of_determinant %d\n", determinants[n]);
 	for (int i = 0; i < n; i++)
 	{
 		if (determinants[n] == 0)
 			exit;
 		pole[i] = ((double)determinants[i]) / ((double)determinants[n]);
-		printf("\n\t%d / %d = %f \n", determinants[i], determinants[n], pole[i]);
+		//printf("\n\t%d / %d = %f \n", determinants[i], determinants[n], pole[i]);
 
 	}
 
 	return pole;
-	// debilny error// dalsia chujovina musi byt dynamicka
-}///////////////////////////////////////////////////////////////////////////////////////////
-
+	
+}
 
 
 
@@ -299,7 +289,7 @@ int main ()
 	socklen_t addr_size;
 
 	struct sockaddr_in newAddr;
-	pid_t childPID;
+	
 	char buffer[1024];
 ///////////////////////////////////////////////
 			//////// SHM ////////
@@ -322,7 +312,7 @@ int main ()
 ///////////////////////////////////////////////
 
 
-signal(SIGCHLD,sigFlag);// posiela signal kez zomrie dieta
+	signal(SIGCHLD,sigFlag);// zachytava sa signal ktory posle potomok ked umiera
 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);// vytvorenie socketu
 	if(sockfd < 0)
@@ -356,18 +346,18 @@ signal(SIGCHLD,sigFlag);// posiela signal kez zomrie dieta
 	while(1)
 	{
 		//Casovac//
-		
 		timer_t casovac;
-  		signal(SIGUSR1, sigusr1);//signal tyreba na mapovat aby vedel co ocakavat
+  		signal(SIGUSR1, sigusr1);
   		casovac=vytvorCasovac(SIGUSR1);
   		spustiCasovac(casovac,10);
-		//
+		//Casovac//
+
 		newSocket = accept(sockfd, (struct sockaddr*)&serverAddr, &addr_size);
 		if(newSocket < 0)
 		{
 			exit(1);
 		}
-		printf("[+]Connection accepted from %s:%d\n", inet_ntoa(newAddr.sin_addr), ntohs(newAddr.sin_port));
+		printf("[+]Connection accepted\n");
 		connFlag++;// pripaja sa
 
 		if (childPID = fork() == 0)
@@ -375,11 +365,10 @@ signal(SIGCHLD,sigFlag);// posiela signal kez zomrie dieta
 			close(sockfd);
 			
 
-				recv(newSocket, buffer, 
-1024, 0);
+				recv(newSocket, buffer, 1024, 0);
 				if(strcmp(buffer, "exit") == 0)
 				{
-					printf("[-]Disconnected from %s:%d\n", inet_ntoa(newAddr.sin_addr), ntohs(newAddr.sin_port));
+					printf("[-]Client disconected\n");
 					break;
 				}else
 				{
@@ -392,7 +381,7 @@ signal(SIGCHLD,sigFlag);// posiela signal kez zomrie dieta
 
 					}
 					txtname[i] = '\0';// bez pridania nuli to vypisovalo hovadiny
-					printf("[DEBUG]Nazov matice: %s\n", txtname);
+					printf("[DEBUG]File name: %s\n", txtname);
 
 					
 					
@@ -400,7 +389,7 @@ signal(SIGCHLD,sigFlag);// posiela signal kez zomrie dieta
 					{
 						polek[0] = key;// musi byt
 						send(newSocket, polek, sizeof(polek), 0);// posle -1 ako kluc
-						printf("[-]Subor sa nenasiel\n");// osetrenie ak sa nenajde subor
+						printf("[-]File not found\n");// osetrenie ak sa nenajde subor
   						exit(1);
 					}
 					if ((shmid = shmget(key, sizeof(matrix), IPC_CREAT | 0666)) < 0) {
@@ -408,36 +397,33 @@ signal(SIGCHLD,sigFlag);// posiela signal kez zomrie dieta
         				exit(1);
     				}
 
-    				/*
-     				*Now we attach the segment to our data space.
-     				*/
+    			
     				if ((ptrmatrix = (matrix*)shmat(shmid, (void*)0, 0)) == (matrix *) -1) {
         				perror("shmat");
         				exit(1);
     				}
   					if (read1(matica, txtname, &(ptrmatrix->rozmer)) < 0)
   					{
-  						printf("[-]Subor sa nenasiel\n");
+  						printf("[-]File not found\n");
   						exit(1);
   					}
     			
     				matfill(matica, ptrmatrix->mat, ptrmatrix->rozmer);
     			
     				polek[0] = key;
-    				printf("[DEBUG]Toto je kluc: %d\n", key);//*************************DEBUG*************************//
+    				printf("[DEBUG]Key: %d\n", key);//*************************DEBUG*************************//
     				send(newSocket, polek, sizeof(polek), 0);
-					printf("[DEBUG]Do pamate sa zapisalo :\n");
+					printf("[DEBUG]Matrix in SHM:\n");
 					Vypis(ptrmatrix->mat, ptrmatrix->rozmer); 
 
 					/////// * Ratanie Determinantu * ///////
 					maticaDym = create(ptrmatrix->rozmer);
 					matfillDym(ptrmatrix->mat, maticaDym, ptrmatrix->rozmer);// naplnenie dynamickej matice [musi byt dynamicka]
-					//VypisDym(maticaDym, ptrmatrix->rozmer);
-					////////////teraz primem koeficienty rozsirenej matice///////////
+					
 					int mat_koef[MATMAX];
 					recv(newSocket, mat_koef,sizeof(mat_koef), 0);
 					//printf("\n toto su koeficienty %d %d %d", mat_koef[0], mat_koef[1], mat_koef[2]);//*************************DEBUG*************************//
-					//det = Eq_solver(maticaDym, ptrmatrix->rozmer, mat_koef);
+					
 					roots = roots_of_eq(Eq_solver(maticaDym, ptrmatrix->rozmer, mat_koef), ptrmatrix->rozmer);//vypocita korene rovnic
 					//printf("determinanty:%f %f \n", roots[0], roots[1]);//*************************DEBUG*************************//
 					
@@ -446,24 +432,22 @@ signal(SIGCHLD,sigFlag);// posiela signal kez zomrie dieta
 					recv(newSocket, end,sizeof(end), 0);
 					if(end[0] == 1)
 					{
-						printf("[+]Equations for %s solved\n",txtname);
+						printf("[+]Equations from: %s solved\n",txtname);
+
 						//connFlag = 0;
 					}
-
-
+		
 				}
 			
-		}else
-			{
-				/////// Rodic pocuva ci mu zomrelo dieta ////////
-				//signal(SIGCHLD,sigFlag);////zabija to zombie procesy
-			}
-
+		}
 		
 
     }
+    free(pommatrix);
+    free(ptrmatrix);
 	free(roots);
     close(newSocket);
+
 	return 0;
 }
 
@@ -492,10 +476,10 @@ void spustiCasovac(timer_t casovac, int sekundy)
 void sigusr1()//handler pre signal
  {
  	signal(SIGUSR1, sigusr1);
- 	printf("\nTimer check\n");
+ 	printf("\nTimer check\n");//[DEBUG]//
  	if (connFlag <= 0)
  	{
- 		printf("Time out\n");
+ 		printf("Time out\n"); //[DEBUG]//
  		exit(0);
  	}
 
