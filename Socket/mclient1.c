@@ -68,6 +68,7 @@ int main ()
     key_t key;
     double roots[MATMAX];
     char alf[30];
+    int end[1];
     ///////////////////////////////////////////////
     
 
@@ -169,7 +170,8 @@ int main ()
                     }
 
                 }
-
+                end[0] = 1;
+                send(clientSocket, end, sizeof(end), 0);// akdostane vysledok posle naspat nulu ktora znaci ze skoncil
             //
             }
     	}

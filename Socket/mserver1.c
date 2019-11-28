@@ -10,11 +10,19 @@
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <signal.h>
+//#include <pthread.h>
+#include <time.h>
 
 
 
 #define PORT 9834
 #define MATMAX 200 // velkost najvacsiej matice
+int connFlag = 0;
+timer_t vytvorCasovac(int);
+void spustiCasovac(timer_t, int);
+
+void sigusr1();
+void sigusr2();
 
 typedef struct matrix
 {
@@ -22,6 +30,13 @@ typedef struct matrix
   int mat[MATMAX][MATMAX];
 }matrix;
 
+void sigFlag(int signum)// ak skonci proces potomka odpocota sa premena podla ktorej rozhodujeme vypnutie servera
+{
+	wait(NULL);
+	printf("Child kill\n");
+	connFlag --;
+
+}
 
 int **create(int n)
 {
@@ -137,9 +152,13 @@ int *Eq_solver(int **table1, int n, int ext[MATMAX])
 	}
 	// determinant hlavnej matice pripoji na posledne misto pola
 	//printf("Eq_solver %f\n", det[n]);
+
+	
+
 	for (int m = 0; m < n; m++)
 	{
 
+////////////////////////////////////////////////////////max velkost 5
 		for (int x = 0; x < n; x++)
 
 		{
@@ -151,7 +170,6 @@ int *Eq_solver(int **table1, int n, int ext[MATMAX])
 			}
 
 		}
-
 		for (int j = 0; j < n; j++)
 
 		{
@@ -168,19 +186,18 @@ int *Eq_solver(int **table1, int n, int ext[MATMAX])
 
 		}
 		det[m] = determinantOfMatrix(temp1, n);
-		printf("\n Determinant cislo %d: %d\n", m, det[m]);//////[DEBUG]
-		VypisDym(temp1, n);////// [DEBUG]
-
+		printf("\n Determinant cislo %d: %d\n", m, det[m]);//[DEBUG]
+		VypisDym(temp1, n);//[DEBUG]
+		
+/////////////////////////////////////////////////////
 	}
 
-	/////////////////////
 	return det;
 
 }
 
 
 
-///////////////////////////////////////////////////////////////////////////////
 int read1(int matout[MATMAX][MATMAX], char subor[50],int *num ) // funkcia pre nacitanie matice zo suboru
 {
 	FILE *fr;
@@ -266,8 +283,13 @@ double *roots_of_eq(int *determinants, int n)
 	}
 
 	return pole;
-	// debilny error// dalsia chujovina musi byt dynamicke
+	// debilny error// dalsia chujovina musi byt dynamicka
 }///////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
 
 int main () 
 {
@@ -296,8 +318,11 @@ int main ()
 	int **maticaDym;
 	int *det;
 	double *roots;
+	int end[1];
 ///////////////////////////////////////////////
 
+
+signal(SIGCHLD,sigFlag);// posiela signal kez zomrie dieta
 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);// vytvorenie socketu
 	if(sockfd < 0)
@@ -330,21 +355,28 @@ int main ()
 
 	while(1)
 	{
-
+		//Casovac//
+		
+		timer_t casovac;
+  		signal(SIGUSR1, sigusr1);//signal tyreba na mapovat aby vedel co ocakavat
+  		casovac=vytvorCasovac(SIGUSR1);
+  		spustiCasovac(casovac,10);
+		//
 		newSocket = accept(sockfd, (struct sockaddr*)&serverAddr, &addr_size);
 		if(newSocket < 0)
 		{
 			exit(1);
 		}
 		printf("[+]Connection accepted from %s:%d\n", inet_ntoa(newAddr.sin_addr), ntohs(newAddr.sin_port));
-	
+		connFlag++;// pripaja sa
 
 		if (childPID = fork() == 0)
 		{
 			close(sockfd);
 			
-			
-				recv(newSocket, buffer, 1024, 0);
+
+				recv(newSocket, buffer, 
+1024, 0);
 				if(strcmp(buffer, "exit") == 0)
 				{
 					printf("[-]Disconnected from %s:%d\n", inet_ntoa(newAddr.sin_addr), ntohs(newAddr.sin_port));
@@ -406,11 +438,17 @@ int main ()
 					recv(newSocket, mat_koef,sizeof(mat_koef), 0);
 					//printf("\n toto su koeficienty %d %d %d", mat_koef[0], mat_koef[1], mat_koef[2]);//*************************DEBUG*************************//
 					//det = Eq_solver(maticaDym, ptrmatrix->rozmer, mat_koef);
-					roots = roots_of_eq(Eq_solver(maticaDym, ptrmatrix->rozmer, mat_koef), ptrmatrix->rozmer);
+					roots = roots_of_eq(Eq_solver(maticaDym, ptrmatrix->rozmer, mat_koef), ptrmatrix->rozmer);//vypocita korene rovnic
 					//printf("determinanty:%f %f \n", roots[0], roots[1]);//*************************DEBUG*************************//
 					
 					
-					send(newSocket, roots, sizeof(double)*ptrmatrix->rozmer, 0);
+					send(newSocket, roots, sizeof(double)*ptrmatrix->rozmer, 0);// posle korene rovnic
+					recv(newSocket, end,sizeof(end), 0);
+					if(end[0] == 1)
+					{
+						printf("[+]Equations for %s solved\n",txtname);
+						//connFlag = 0;
+					}
 
 
 				}
@@ -418,7 +456,7 @@ int main ()
 		}else
 			{
 				/////// Rodic pocuva ci mu zomrelo dieta ////////
-				signal(SIGCHLD,SIG_IGN);////zabija to zombie procesy
+				//signal(SIGCHLD,sigFlag);////zabija to zombie procesy
 			}
 
 		
@@ -428,3 +466,37 @@ int main ()
     close(newSocket);
 	return 0;
 }
+
+
+timer_t vytvorCasovac(int signal)
+{
+  struct sigevent kam;
+  kam.sigev_notify=SIGEV_SIGNAL;
+  kam.sigev_signo=signal;
+  
+  timer_t casovac;
+  timer_create(CLOCK_REALTIME, &kam, &casovac);
+  return(casovac); 
+}
+
+
+void spustiCasovac(timer_t casovac, int sekundy)
+{
+  struct itimerspec casik;
+  casik.it_value.tv_sec=sekundy;
+  casik.it_value.tv_nsec=0;
+  casik.it_interval.tv_sec=sekundy;
+  casik.it_interval.tv_nsec=0;
+  timer_settime(casovac,CLOCK_REALTIME,&casik,NULL);
+}
+void sigusr1()//handler pre signal
+ {
+ 	signal(SIGUSR1, sigusr1);
+ 	printf("\nTimer check\n");
+ 	if (connFlag <= 0)
+ 	{
+ 		printf("Time out\n");
+ 		exit(0);
+ 	}
+
+ } 
