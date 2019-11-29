@@ -10,14 +10,16 @@
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <signal.h>
-//#include <pthread.h>
+#include <pthread.h>
 #include <time.h>
 
 
 
 #define PORT 9834
 #define MATMAX 200 // velkost najvacsiej matice
-int connFlag = 0;
+#define online_clients 1
+int num_of_client = 0;
+int childdata;
 pid_t childPID;
 timer_t vytvorCasovac(int);
 void spustiCasovac(timer_t, int);
@@ -31,11 +33,71 @@ typedef struct matrix
   int mat[MATMAX][MATMAX];
 }matrix;
 
+typedef struct table
+{
+ int rozmer_table[MATMAX];
+ int pid_table[MATMAX];
+ //char txtname_table[MATMAX][MATMAX];
+ int key_table[MATMAX];
+ int ID_table;
+}table;
+
+void *myThread()
+{
+	int a = 0;
+	int record;
+	table *ptrtable2;
+	
+    ptrtable2 = (table *) malloc(sizeof(table));
+    int matica[MATMAX][MATMAX]; 
+    int shmid2;
+	key_t key2;
+	key2 = 9804;
+//////////////////////////////////////////////////
+	if ((shmid2 = shmget(key2, sizeof(table),0666)) < 0) {
+        perror("shmget1");
+        exit(1);
+    }
+
+  
+    if ((ptrtable2 = (table*)shmat(shmid2, (void*)0, 0)) == (table *) -1) {
+        perror("shmat");
+        exit(1);
+    }
+//////////////////////////////////////////////////
+
+	while(1)
+	{
+    	scanf("%d", &a);
+    	switch(a)
+    	{
+    		case online_clients:
+    			printf("Online clients: %d\n", num_of_client);
+    			break;
+    		case 2:
+    			printf("Port: %d\n", PORT);
+    			break;
+    		case 3:
+    			printf("Number of records %d\n", ptrtable2->ID_table);
+    			printf("Enter number:");
+    			scanf("%d", &record);
+    			printf("Record ID: %d\n", ptrtable2->ID_table);
+    			printf("Proces ID:%d\n", ptrtable2->pid_table[record]);
+    			//printf("Name of input file:%s", ptrtable2->txtname_table[record]);
+    			printf("Dimension od matrix:%d\n", ptrtable2->rozmer_table[record]);
+
+    			break;	
+    	}
+      
+    }  
+}
+
+
 void sigFlag(int signum)// ak skonci proces potomka odpocota sa premena podla ktorej rozhodujeme vypnutie servera
 {
 	wait(NULL);
 	printf("[+]Client disconnected\n");
-	connFlag --;
+	num_of_client --;
 
 }
 
@@ -281,6 +343,7 @@ double *roots_of_eq(int *determinants, int n)
 
 
 
+
 int main () 
 {
 	int sockfd, ret, newSocket;
@@ -296,20 +359,45 @@ int main ()
 	char txtname[200];
 	matrix *ptrmatrix;
 	matrix *pommatrix;
+	table *ptrtable;
 	pommatrix = (matrix *) malloc(sizeof(matrix));
     ptrmatrix = (matrix *) malloc(sizeof(matrix));
+    ptrtable = (table *) malloc(sizeof(table));
     int matica[MATMAX][MATMAX]; 
     int shmid;
 	key_t key;
 	int readerr;
 	int polek[1];
 ///////////////////////////////////////////////
-			////pre determimant////
+			////Determinant////
 	int **maticaDym;
 	int *det;
 	double *roots;
 	int end[1];
 ///////////////////////////////////////////////
+			//////// Thread ////////
+	pthread_t tid1;
+	pthread_create(&tid1, NULL, myThread, NULL); 
+
+///////////////////////////////////////////////
+			//////// main SHM ////////
+	int shmid1;
+	key_t key1 = 9804;
+
+	 if ((shmid1 = shmget(key1, sizeof(table), IPC_CREAT | 0666)) < 0) {
+        perror("shmget2");
+        exit(1);
+    }
+
+    
+    if ((ptrtable = (table*)shmat(shmid1, (void*)0, 0)) == (table*) -1) {
+        perror("shmat");
+        exit(1);
+    }
+    ptrtable->ID_table = 1;
+///////////////////////////////////////////////
+
+
 
 
 	signal(SIGCHLD,sigFlag);// zachytava sa signal ktory posle potomok ked umiera
@@ -358,7 +446,7 @@ int main ()
 			exit(1);
 		}
 		printf("[+]Connection accepted\n");
-		connFlag++;// pripaja sa
+		num_of_client++;// pripaja sa
 
 		if (childPID = fork() == 0)
 		{
@@ -409,7 +497,14 @@ int main ()
   					}
     			
     				matfill(matica, ptrmatrix->mat, ptrmatrix->rozmer);
-    			
+    				////////
+    				
+    				ptrtable->rozmer_table[ptrtable->ID_table] = ptrmatrix->rozmer;
+    				ptrtable->pid_table[ptrtable->ID_table] = getpid();
+    				ptrtable->key_table[ptrtable->ID_table] = key;
+    				
+    				ptrtable->ID_table = ptrtable->ID_table + 1;
+    				///////
     				polek[0] = key;
     				printf("[DEBUG]Key: %d\n", key);//*************************DEBUG*************************//
     				send(newSocket, polek, sizeof(polek), 0);
@@ -436,7 +531,12 @@ int main ()
 
 						//connFlag = 0;
 					}
-		
+					
+					///////
+					///zapis do table SHM////
+					
+					
+					///////
 				}
 			
 		}
@@ -477,7 +577,7 @@ void sigusr1()//handler pre signal
  {
  	signal(SIGUSR1, sigusr1);
  	printf("\nTimer check\n");//[DEBUG]//
- 	if (connFlag <= 0)
+ 	if (num_of_client  <= 0)
  	{
  		printf("Time out\n"); //[DEBUG]//
  		exit(0);
