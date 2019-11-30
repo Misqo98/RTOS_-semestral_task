@@ -16,8 +16,13 @@
 
 
 #define PORT 9834
+#define RECMAX 20 // maximany pocet zaznamov
 #define MATMAX 200 // velkost najvacsiej matice
-#define online_clients 1
+#define online_clients_info 1 	// *				*//
+#define port_info 2				// * Info switches	*//
+#define records_info 3			// *				*//
+#define printinfo printf("\t[*]\t  Server info\t\t[*]\n\t[*] Print online client - 1\t[*]\n\t[*] Print PORT - 2\t\t[*]\n\t[*] Print record info - 3\t[*]\n")
+
 int num_of_client = 0;
 int childdata;
 pid_t childPID;
@@ -35,11 +40,12 @@ typedef struct matrix
 
 typedef struct table
 {
- int rozmer_table[MATMAX];
- int pid_table[MATMAX];
+ int rozmer_table[RECMAX];
+ int pid_table[RECMAX];
  //char txtname_table[MATMAX][MATMAX];
- int key_table[MATMAX];
- int ID_table;
+ int key_table[RECMAX];
+ int num_of_records;
+ int id[RECMAX];
 }table;
 
 void *myThread()
@@ -54,6 +60,7 @@ void *myThread()
 	key_t key2;
 	key2 = 9804;
 //////////////////////////////////////////////////
+	//////// nacitanie z main SHM ////////
 	if ((shmid2 = shmget(key2, sizeof(table),0666)) < 0) {
         perror("shmget1");
         exit(1);
@@ -71,20 +78,20 @@ void *myThread()
     	scanf("%d", &a);
     	switch(a)
     	{
-    		case online_clients:
+    		case online_clients_info:
     			printf("Online clients: %d\n", num_of_client);
     			break;
-    		case 2:
+    		case port_info:
     			printf("Port: %d\n", PORT);
     			break;
-    		case 3:
-    			printf("Number of records %d\n", ptrtable2->ID_table);
+    		case records_info:
+    			printf("Number of records %d\n", ptrtable2->num_of_records-1);
     			printf("Enter number:");
     			scanf("%d", &record);
-    			printf("Record ID: %d\n", ptrtable2->ID_table);
-    			printf("Proces ID:%d\n", ptrtable2->pid_table[record]);
-    			//printf("Name of input file:%s", ptrtable2->txtname_table[record]);
-    			printf("Dimension od matrix:%d\n", ptrtable2->rozmer_table[record]);
+    			printf("\tRecord ID: %d\n", ptrtable2->id[record]);
+    			printf("\tProces ID:%d\n", ptrtable2->pid_table[record]);
+    			printf("\tKey:%d\n", ptrtable2->key_table[record]);
+    			printf("\tDimension od matrix:%d\n", ptrtable2->rozmer_table[record]);
 
     			break;	
     	}
@@ -144,19 +151,16 @@ void getCofactor(int **mat, int **temp, int p, int q, int n)
 {
 	int i = 0, j = 0;
 
-	// Looping for each element of the matrix 
+	// prejde kazdu cast matice
 	for (int row = 0; row < n; row++)
 	{
 		for (int col = 0; col < n; col++)
 		{
-			//  Copying into temporary matrix only those element 
-			//  which are not in given row and column 
+			//  vyberie prvky da ich do docasnej amtice
 			if (row != p && col != q)
 			{
 				temp[i][j++] = mat[row][col];
 
-				// Row is filled, so increase row index and 
-				// reset col index 
 				if (j == n - 1)
 				{
 					j = 0;
@@ -170,30 +174,30 @@ void getCofactor(int **mat, int **temp, int p, int q, int n)
 
 int determinantOfMatrix(int **mat, int n)
 {
-	int D = 0; // Initialize result 
+	int D = 0; // Vynuluje vysledok
 
-	//  Base case : if matrix contains single element 
+	//  Ak je matica 1 x 1 
 	if (n == 1)
 		return mat[0][0];
 
-	int **temp = create(n);// To store cofactors 
+	int **temp = create(n);// docasna matica pre ulozenie matice //dynamicka
 
-	int sign = 1;  // To store sign multiplier 
+	int sign = 1;  // Znamienko sa meni zacina na 1 
 
-	 // Iterate for each element of first row 
+	 
 	for (int f = 0; f < n; f++)
 	{
-		// Getting Cofactor of mat[0][f] 
+		
 		getCofactor(mat, temp, 0, f, n);
-		D += sign * mat[0][f] * determinantOfMatrix(temp, n - 1);
+		D += sign * mat[0][f] * determinantOfMatrix(temp, n - 1);// pouziva rekurzovu pre pocitanie
 
-		// terms are to be added with alternate sign 
-		sign = -sign;
+		
+		sign = -sign;// po kazdom sa znamienok meni
 	}
-	for (int i = 0; i < n; i++)
-		free(temp[i]);
-	free(temp);
-	//printf("\nVykonal som sa !!\n");
+	for (int i = 0; i < n; i++)	//** uvolni pamat 	**//
+		free(temp[i]);			//** pre docasnu	**//
+	free(temp);					//** maticou		**//
+
 	return D;
 }
 
@@ -246,8 +250,6 @@ int *Eq_solver(int **table1, int n, int ext[MATMAX])
 
 		}
 		det[m] = determinantOfMatrix(temp1, n);
-		//printf("\n Determinant cislo %d: %d\n", m, det[m]);//[DEBUG]
-		//VypisDym(temp1, n);//[DEBUG]
 		
 /////////////////////////////////////////////////////
 	}
@@ -389,16 +391,18 @@ int main ()
         exit(1);
     }
 
-    
     if ((ptrtable = (table*)shmat(shmid1, (void*)0, 0)) == (table*) -1) {
         perror("shmat");
         exit(1);
     }
-    ptrtable->ID_table = 1;
+    ptrtable->num_of_records = 1;
 ///////////////////////////////////////////////
-
-
-
+    		//////// Timer ////////
+		timer_t casovac;
+  		signal(SIGUSR1, sigusr1);
+  		casovac=vytvorCasovac(SIGUSR1);
+  		spustiCasovac(casovac,30);
+ ///////////////////////////////////////////////
 
 	signal(SIGCHLD,sigFlag);// zachytava sa signal ktory posle potomok ked umiera
 
@@ -430,16 +434,10 @@ int main ()
 	{
 	printf("[-]Error in binding\n");
 	}
-
+	printinfo;
+	
 	while(1)
 	{
-		//Casovac//
-		timer_t casovac;
-  		signal(SIGUSR1, sigusr1);
-  		casovac=vytvorCasovac(SIGUSR1);
-  		spustiCasovac(casovac,10);
-		//Casovac//
-
 		newSocket = accept(sockfd, (struct sockaddr*)&serverAddr, &addr_size);
 		if(newSocket < 0)
 		{
@@ -497,30 +495,31 @@ int main ()
   					}
     			
     				matfill(matica, ptrmatrix->mat, ptrmatrix->rozmer);
-    				////////
-    				
-    				ptrtable->rozmer_table[ptrtable->ID_table] = ptrmatrix->rozmer;
-    				ptrtable->pid_table[ptrtable->ID_table] = getpid();
-    				ptrtable->key_table[ptrtable->ID_table] = key;
-    				
-    				ptrtable->ID_table = ptrtable->ID_table + 1;
-    				///////
+
+    				///////////////////////////////////////////////
+    						//////// Recording ////////
+    				ptrtable->rozmer_table[ptrtable->num_of_records] = ptrmatrix->rozmer;
+    				ptrtable->pid_table[ptrtable->num_of_records] = getpid();
+    				ptrtable->key_table[ptrtable->num_of_records] = key;
+    				ptrtable->id[ptrtable->num_of_records] = ptrtable->num_of_records;//
+    				ptrtable->num_of_records++;// zapocita sa len ked vsetko zapise
+    				///////////////////////////////////////////////
+
     				polek[0] = key;
-    				printf("[DEBUG]Key: %d\n", key);//*************************DEBUG*************************//
+    				//printf("[DEBUG]Key: %d\n", key);//*************************DEBUG*************************//
     				send(newSocket, polek, sizeof(polek), 0);
-					printf("[DEBUG]Matrix in SHM:\n");
+					printf("Matrix in SHM:\n");
 					Vypis(ptrmatrix->mat, ptrmatrix->rozmer); 
 
-					/////// * Ratanie Determinantu * ///////
+					///////////////////////////////////////////////
+						/////// Ratanie Determinantu ///////
 					maticaDym = create(ptrmatrix->rozmer);
 					matfillDym(ptrmatrix->mat, maticaDym, ptrmatrix->rozmer);// naplnenie dynamickej matice [musi byt dynamicka]
-					
 					int mat_koef[MATMAX];
 					recv(newSocket, mat_koef,sizeof(mat_koef), 0);
-					//printf("\n toto su koeficienty %d %d %d", mat_koef[0], mat_koef[1], mat_koef[2]);//*************************DEBUG*************************//
-					
 					roots = roots_of_eq(Eq_solver(maticaDym, ptrmatrix->rozmer, mat_koef), ptrmatrix->rozmer);//vypocita korene rovnic
-					//printf("determinanty:%f %f \n", roots[0], roots[1]);//*************************DEBUG*************************//
+					///////////////////////////////////////////////
+					
 					
 					
 					send(newSocket, roots, sizeof(double)*ptrmatrix->rozmer, 0);// posle korene rovnic
@@ -529,14 +528,8 @@ int main ()
 					{
 						printf("[+]Equations from: %s solved\n",txtname);
 
-						//connFlag = 0;
 					}
 					
-					///////
-					///zapis do table SHM////
-					
-					
-					///////
 				}
 			
 		}
@@ -576,10 +569,11 @@ void spustiCasovac(timer_t casovac, int sekundy)
 void sigusr1()//handler pre signal
  {
  	signal(SIGUSR1, sigusr1);
- 	printf("\nTimer check\n");//[DEBUG]//
+ 	printf("\n[+]Timer check -> \tOnline clients:%d\n", num_of_client);//[DEBUG]//
+ 	printinfo;
  	if (num_of_client  <= 0)
  	{
- 		printf("Time out\n"); //[DEBUG]//
+ 		printf("[-]Connection timeout\n"); //[DEBUG]//
  		exit(0);
  	}
 

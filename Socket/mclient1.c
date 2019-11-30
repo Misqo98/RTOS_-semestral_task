@@ -95,7 +95,7 @@ int main ()
 
     
 
-    	printf("Zadajte nazov suboru pre nacitanie matice: \t");
+    	printf("Enter file name (with .txt): \t");
     	scanf("%s", txtname);
         strcpy(buffer, txtname);////////
         buffer[sizeof(buffer)] = '\n';////////
@@ -116,10 +116,10 @@ int main ()
     	{
              if(polek[0] < 0)// ak pride kluc < 1 tak vypise error
             {
-                printf("[-]Subor s nazvom: %s sa nenasiel!\n", txtname);
+                printf("[-]File: %s not found!\n", txtname);
                 exit(1);
             }
-    		printf("[DEBUG]Toto je kluc%d\n", polek[0]);
+    		printf("[DEBUG]Key: %d\n", polek[0]);
             //
             key = polek[0];
             //////////////////////// zapisanie do SHM //////////////////////
@@ -127,31 +127,24 @@ int main ()
                 perror("[-]shmget");
                 exit(1);
             }
-
-            /*
-            * Now we attach the segment to our data space.
-            */
             if ((ptrmatrix = (matrix*)shmat(shmid, (void*)0, 0)) == (matrix *) -1) {
                 perror("[-]shmat");
                 exit(1);
             }else{
             
-            
-           //////////////////////// zapisanie do SHM //////////////////////
                 pommatrix = ptrmatrix;
-
                 int n = ptrmatrix->rozmer;///// toto je zbitocne ak tak upravit
                 int mat_koef[MATMAX];
                 
-                printf("[+] Nacitala sa matica %dx%d\n", pommatrix->rozmer, pommatrix->rozmer);
-                //printf("[DEBUG]V zdielanej pamati je toto:%d(romer matice)\n", ptrmatrix->rozmer);
+                printf("[+] Matrix: %dx%d\n", pommatrix->rozmer, pommatrix->rozmer);
+             
                 Vypis(pommatrix->mat, ptrmatrix->rozmer); 
 
                 ////// nacitanie rozsirenej matice ///////
-                printf("Zadajte koeficienty rozsirenej matice:\n");
+                printf("Enter koeficient of extendet matrix:\n");
                 for(int i = 0; i < pommatrix->rozmer; i++)
                 {
-                    printf("\t Zadajte %d. koeficient rozsirenej matice:", i+1);
+                    printf("\t Enter %d. koeficient of extendet matrix:", i+1);
                     scanf("%d", &mat_koef[i]);
 
                 }
@@ -163,10 +156,10 @@ int main ()
 
                 }else
                 {
-                    printf("Riesenia rovnic:\n");
+                    printf("Roots of equations:\n");
                     for(int i = 0; i < pommatrix->rozmer; i++)
                     {
-                        printf("\tRiesenie %d. rovnice = %f\n", i+1, roots[i]);// pride iba prvy x v poli
+                        printf("\tRoot of %d. equation = %f\n", i+1, roots[i]);
                     }
 
                 }
