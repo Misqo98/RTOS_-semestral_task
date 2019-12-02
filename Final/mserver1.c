@@ -30,7 +30,6 @@ timer_t vytvorCasovac(int);
 void spustiCasovac(timer_t, int);
 
 void sigusr1();
-void sigusr2();
 
 typedef struct matrix
 {
@@ -205,23 +204,16 @@ int determinantOfMatrix(int **mat, int n)
 
 int *Eq_solver(int **table1, int n, int ext[MATMAX])
 {
-
 	int **temp1 = create(n);
-	//int ext[] = { 1 , 2, 3, 4, 5, };
 	int *det = (int*)malloc(n * sizeof(int));
-	//int det[100];
-	det[n] = determinantOfMatrix(table1, n);
+	det[n] = determinantOfMatrix(table1, n);// determinant hlavnej matice pripoji na posledne misto pola
 	if(det[n] == 0)
 	{
 		printf("Delenie nulou1");
 		exit(1);
 	}
-	// determinant hlavnej matice pripoji na posledne misto pola
-	
-
 	for (int m = 0; m < n; m++)
 	{
-
 
 		for (int x = 0; x < n; x++)
 
@@ -234,6 +226,7 @@ int *Eq_solver(int **table1, int n, int ext[MATMAX])
 			}
 
 		}
+
 		for (int j = 0; j < n; j++)
 
 		{
@@ -265,19 +258,13 @@ for (int i = 0; i < n; i++)
 int read1(int matout[MATMAX][MATMAX], char subor[50],int *num ) // funkcia pre nacitanie matice zo suboru
 {
 	FILE *fr;
-	//int **table;
-
 	int sx = 0, sy = 0, min;
-	//char subor[] = {"Vstup.txt"};
 	if ((fr = fopen(subor, "r")) == NULL) {
 		printf("[-]Subor sa nepodarilo otvorit.\n");
 		return -1;
 	}
 
 	fscanf(fr, "%d\n", &*(num));
-	//table = create1(*(num));
-
-
 	for (int x = 0; x < (*num); x++)
 
 	{
@@ -402,7 +389,7 @@ int main ()
     		//////// Timer ////////
 		timer_t casovac;
   		signal(SIGUSR1, sigusr1);
-  		casovac=vytvorCasovac(SIGUSR1);
+  		casovac = vytvorCasovac(SIGUSR1);
   		spustiCasovac(casovac,30);
   		signal(SIGCHLD,sigFlag);// zachytava sa signal ktory posle potomok ked umiera
  ///////////////////////////////////////////////
@@ -447,7 +434,7 @@ int main ()
 			exit(1);
 		}
 		printf("[+]Connection accepted\n");
-		num_of_client++;// pripaja sa
+		num_of_client++;// pripojil sa klient
 
 		if (childPID = fork() == 0)
 		{
@@ -470,7 +457,7 @@ int main ()
 
 					}
 					txtname[i] = '\0';// na poslene miesto nul. znak
-					printf("[DEBUG]File name: %s\n", txtname);
+					printf("Matrix from: %s\n", txtname);
 
 					if((key = ftok(txtname, 'R')) < 0)//Vytvorenie unikatneho kluca pre kazdy subor
 					{
@@ -507,7 +494,7 @@ int main ()
     				///////////////////////////////////////////////
 
     				polek[0] = key;
-    				//printf("[DEBUG]Key: %d\n", key);//*************************DEBUG*************************//
+    				
     				send(newSocket, polek, sizeof(polek), 0);
 					printf("Matrix in SHM:\n");
 					Vypis(ptrmatrix->mat, ptrmatrix->rozmer); 

@@ -6,6 +6,6 @@ client: mclient1.c
 server: mserver1.c
 	$(CC) mserver1.c -o mserver1 $(CFLAGS)
 
-clean: 
+clean: mserver1 mclient1
 	rm mserver1
 	rm mclient1

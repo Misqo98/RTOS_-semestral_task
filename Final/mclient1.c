@@ -98,7 +98,7 @@ int main ()
     	printf("Enter file name (with .txt): \t");
     	scanf("%s", txtname);
         strcpy(buffer, txtname);////////
-        buffer[sizeof(buffer)] = '\n';////////
+        buffer[sizeof(buffer)] = '\0';////////
     	send(clientSocket, buffer, sizeof(buffer), 0);
 
     	if(strcmp(buffer, "exit") == 0)
@@ -149,7 +149,7 @@ int main ()
 
                 }
                 send(clientSocket, mat_koef, sizeof(mat_koef), 0);
-               // printf("\n toto su koeficienty %d %d %d", mat_koef[0], mat_koef[1], mat_koef[2]);
+               
                 if(recv(clientSocket, roots, sizeof(roots), 0) < 0)
                 {
                     printf("[-]Error in recieving data(key)\n");
@@ -164,7 +164,7 @@ int main ()
 
                 }
                 end[0] = 1;
-                send(clientSocket, end, sizeof(end), 0);// akdostane vysledok posle naspat nulu ktora znaci ze skoncil
+                send(clientSocket, end, sizeof(end), 0);// ak dostane vysledok posle naspat nulu ktora znaci ze skoncil
             //
             }
     	}   
